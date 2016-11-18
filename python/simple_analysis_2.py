@@ -88,12 +88,6 @@ if __name__ == '__main__':
     
     # Analysis of known PPIs    
     all_alz_edges = gr_int_alz_PPI.get_edgelist()
-#    all_vectors = []    
-#    for edge in all_alz_edges:
-#        gene1 = gr_int_alz_PPI.vs[edge[0]]["name"]
-#        gene2 = gr_int_alz_PPI.vs[edge[1]]["name"]
-#        vect = pair_analysis(gene1, gene2, set_of_graphs, set_of_lists)
-#        all_vectors.append(vect)
     all_vectors = [pair_analysis(gr_int_alz_PPI.vs[edge[0]]["name"], gr_int_alz_PPI.vs[edge[1]]["name"], set_of_graphs, set_of_lists) for edge in all_alz_edges]
         
     fig = plt.figure(1)
