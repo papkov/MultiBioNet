@@ -4,8 +4,7 @@ import pandas as pd
 
 
 def read_file(filename):
-    df = pd.read_csv(filename, sep='\t',
-                     usecols=["ensg1", "ensg2", "score", "interaction"])
+    df = pd.read_csv(filename, sep='\t')
     return df
 
 def progress_bar(current_num, total_num):
@@ -37,11 +36,13 @@ def set_graph(df):
     graph.es["interaction"] = all_interactions # Add attribute "Interaction"
     graph.es["score"] = all_scores # Add attribute "Score"
         
-    igraph.summary(graph)
+    graph.simplify(multiple = True, loops = False) # Remove multiple edges, remain loops
+    
     return graph
 
 if __name__ == '__main__':
-    #df = read_file("../data/alz_intact_int_PPI.txt")
-    df = read_file("../data/intact_int.txt")
+    df = read_file("../data/alz_intact_int_PPI.txt")
+    #df = read_file("../data/intact_int.txt")
     g = set_graph(df)
-    #igraph.plot(g)
+  #  print( g.shortest_paths('ENSG00000142192', 'ENS00000166313', weights=None,mode='ALL') )
+    igraph.plot(g)    
