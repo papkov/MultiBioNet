@@ -87,8 +87,9 @@ def pair_analysis(gene1, gene2, set_of_graphs, set_of_lists):
 
 def save_features(all_vectors, graph, edges, file='features.csv'):
     with open(file, 'w') as f:
-        output = [','.join(['Gene1',
-                            'Gene2',
+        output = ['%s\n' % ','.join([
+                        'Gene1',
+                        'Gene2',
                         'Int Alz PPI(d)',
                         'Int Alz PPI(j)',
                         'Int all PPI(d)',
