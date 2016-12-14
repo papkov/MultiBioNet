@@ -13,6 +13,8 @@ Created on Wed Nov  9 10:24:10 2016
 import sys
 from math import floor
 import numpy as np
+np.set_printoptions(precision=3)
+
 import igraph
 import pickle
 import pandas as pd
@@ -92,19 +94,31 @@ if __name__ == '__main__':
     # List of used sources: File name / Variable name / Graph - 1, List - 0 /
     sources = [
                ['alz_intact_int_PPI.txt'         , 'gr_int_alz_PPI' , 1],
-               ['intact_int.txt'                 , 'gr_int_all_PPI' , 1],
+               ['intact_int_filtered.txt'        , 'gr_int_all_PPI' , 1],
                ['alzcoexp_int_00001_10102016.txt', 'gr_int_coexpr'  , 1],
                ['synapse_intact_int.txt'         , 'gr_int_syn_PPI' , 1],
                ['parkinson_intact_int_PPI.txt'   , 'gr_int_par_PPI' , 1],
                ['dc_pairs_all_v2.txt'            , 'gr_dc_pairs_all', 1],
                ['alzheimer_pathway_genes.txt'    , 'ls_alz_ptw'     , 0]]    
         
-    use_source_in_class = [0, 1, 1, 1, 1, 1, 1] # Flags - whether to use data from this source as features in classifier
+    use_source_in_class = [0, 0, 1, 1, 1, 1, 1] # Flags - whether to use data from this source as features in classifier
        
     FNR_oneClass = 0.1 # False negative rate for one-class SVM     
     
+    kernel1 = 'linear' # For one-class SVM
+    
+    kernel2 = 'rbf' # For two-class SVM
+   
     remove_repeats = False # Flag -- remove the duplicate entries in positives or negatives lists is required
     
+    build_ROC = True # If True, builds ROC curve via LOO cross-validation. If False, just builds classifier
+    
+    # two_class_SVM_wt = np.array([3]) # Skew between two classes
+    # two_class_SVM_wt = np.arange( 1 , 64,  1 , dtype = np.float)
+    two_class_SVM_wt = np.concatenate( (2**np.arange(-7,0,1, dtype = np.float) , np.arange( 1 , 40,  5 , dtype = np.float)))
+        
+    # max_distance_predict = 1 # Maximum distance in neighbours_of_gwas.pickle
+        
     # ----------- Long and boring re-loading of required data --------------------
     # Here I take a raw data from txt (csv) files, convert them into iGraph and
     # save these graphs into a "all_graphs.pickle" file. After that program breaks.
@@ -180,58 +194,100 @@ if __name__ == '__main__':
     # Analysis of known PPIs in a graph of Alzheimer PPIs
     all_alz_edges = gr_int_alz_PPI.get_edgelist()
     opt_del_edge = [0, 0, 0, 0, 0]
-    all_vectors1 = [pair_analysis(gr_int_alz_PPI.vs[edge[0]]["name"], gr_int_alz_PPI.vs[edge[1]]["name"], set_of_graphs_class.copy(), set_of_lists_class.copy(), opt_del_edge) for edge in all_alz_edges]
+    all_vectors1 = [pair_analysis(gr_int_alz_PPI.vs[edge[0]]["name"], gr_int_alz_PPI.vs[edge[1]]["name"], set_of_graphs_class, set_of_lists_class, opt_del_edge) for edge in all_alz_edges]
     if remove_repeats:
         all_vectors1 = [list(x) for x in set(tuple(x) for x in all_vectors1)] # Leave only unique entires
     positives    = [analysis_vector for analysis_vector in all_vectors1 if sum(analysis_vector)>0]
-    clf = svm.OneClassSVM(nu=FNR_oneClass, kernel="linear")
+    clf = svm.OneClassSVM(nu=FNR_oneClass, kernel=kernel1)
     clf.fit(positives)    
     
     # Analysis of unknown PPIs in a graph of all PPIs
-    all_vertices = gr_int_all_PPI.vs["name"]
-    set_of_random_edges = [random.sample(all_vertices, 2) for _ in range(10**3)]
-    set_of_random_edges = [pair for pair in set_of_random_edges if ( pair[0] not in gr_int_alz_PPI.vs["name"] ) and ( pair[1] not in gr_int_alz_PPI.vs["name"] )]
+#    all_vertices = gr_int_all_PPI.vs["name"]
+#    set_of_random_edges = [random.sample(all_vertices, 2) for _ in range(10**4)]
+#    set_of_random_edges = [pair for pair in set_of_random_edges if ( pair[0] not in gr_int_alz_PPI.vs["name"] ) and ( pair[1] not in gr_int_alz_PPI.vs["name"] )]
 
+    all_int_edges = gr_int_all_PPI.get_edgelist()
+    set_of_random_edges = [random.sample(all_int_edges,1)[0] for _ in range(3*10**3)]
+    set_of_random_edges = [pair for pair in set_of_random_edges if ( pair[0] not in gr_int_alz_PPI.vs["name"] ) and ( pair[1] not in gr_int_alz_PPI.vs["name"] )]
+                           
     opt_del_edge = [0, 0, 0, 0, 0]
-    all_vectors2 = [pair_analysis(edge[0], edge[1], set_of_graphs_class.copy(), set_of_lists_class.copy(), opt_del_edge) for edge in set_of_random_edges]
+#    all_vectors2 = [pair_analysis(edge[0], edge[1], set_of_graphs_class.copy(), set_of_lists_class.copy(), opt_del_edge) for edge in set_of_random_edges]
+    all_vectors2 = [pair_analysis(gr_int_all_PPI.vs[edge[0]]["name"], gr_int_all_PPI.vs[edge[1]]["name"], set_of_graphs_class, set_of_lists_class, opt_del_edge) for edge in all_int_edges]
     all_vectors2 = [analysis_vector for analysis_vector in all_vectors2 if sum(analysis_vector)>0]
+
     if remove_repeats:
         all_vectors2 = [list(x) for x in set(tuple(x) for x in all_vectors2)] # Leave only unique entires
+
     predictions  = clf.predict(all_vectors2)
     negatives    = [vector for index, vector in enumerate(all_vectors2) if predictions[index] == -1]
-
+    if len(negatives) > len(positives):
+        negatives = random.sample(negatives,len(positives))
+                    
     X = np.array( positives + negatives )
     y = np.array([1]*len(positives) + [0]*len(negatives))
     
+    print ('Number of positives: ' + str(len(positives)))
+    print ('Number of negatives: ' + str(len(negatives)))
+
     # ROC 
     loo = LeaveOneOut()
     loo.get_n_splits(X)
     
-    alpha = []
-    beta  = []
+    FPR = []
+    TPR = []
+    ERR = []
 
-    wt_list = [1/100, 11.5, 100] # Skew between two classes
-    for wt in wt_list:
+    if build_ROC:        
+        for wt in two_class_SVM_wt:
         
-        classifier = svm.SVC(kernel='rbf', class_weight={1: wt}, probability=False)
-        FNR = 0
-        TNR = 0    
-        for train, test in loo.split(X):
-            if y[test]: 
-                FNR += (classifier.fit(X[train], y[train]).predict(X[test]) == 0)
-            else:
-                TNR += (classifier.fit(X[train], y[train]).predict(X[test]) == 0)
+            classifier = svm.SVC(kernel=kernel2, class_weight={1: wt}, probability=False)
+            FP_num = 0
+            TP_num = 0
+            ER_num = 0
+            for train, test in loo.split(X):
+                prediction = classifier.fit(X[train], y[train]).predict(X[test]) 
+                FP_num += (prediction == 1)*(1 - y[test])
+                TP_num += (prediction == 1)*y[test]            
+                ER_num += not(prediction == y[test])
         
-        alpha.append(FNR[0]/len(positives))
-        beta.append(TNR[0]/len(negatives))
+            TPR.append(TP_num[0]/len(positives))
+            FPR.append(FP_num[0]/len(negatives))
+            ERR.append(ER_num/len(X))
         
-        print((FNR/len(positives),TNR/len(negatives)))
+            print((wt,FP_num[0],TP_num[0],ER_num))
     
-    plt.plot(alpha,beta)
-    plt.ylabel('True negative rate')
-    plt.xlabel('False negative rate')
-    plt.plot([0,1],[0,1])
-    plt.xlim([0,1])
-    plt.ylim([0,1])
-    plt.grid()
-    
+        plt.plot(FPR, TPR,label = kernel1 + ', Acc=' + str(FNR_oneClass) + ' ' + kernel2)
+        plt.show()
+    else:
+        classifier = svm.SVC(kernel=kernel2, class_weight={1: two_class_SVM_wt}, probability=False)
+        classifier.fit(X, y)
+        with open('neighbours_of_gwas.pickle', 'rb') as f:
+            neighbours_of_gwas = pickle.load(f)
+            
+        counter_all = 0
+        counter_pr = 0
+        x = 0
+        for item in neighbours_of_gwas:
+            x += 1
+            print( (x,len(neighbours_of_gwas)) )
+            
+            neighbours_list = neighbours_of_gwas[item]
+            for nb_tuple in neighbours_list:
+                if ( nb_tuple[1] <= max_distance_predict ):
+                    counter_all += 1
+                    features = np.array( [pair_analysis(item, nb_tuple[0], set_of_graphs_class.copy(), set_of_lists_class.copy(), opt_del_edge)] )
+                    if classifier.predict(features):
+                        counter_pr += 1
+#                        print(item+' '+nb_tuple[0])
+            
+        print((counter_all, counter_pr))           
+        
+        plt.legend(loc = 4)
+        plt.xlabel('False postitive rate')
+        plt.ylabel('True positive rate')    
+        plt.plot([0,1],[0,1])
+        plt.xlim([0,1])
+        plt.ylim([0,1])
+        plt.grid()
+        plt.show()
+        

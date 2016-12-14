@@ -101,16 +101,18 @@ if __name__ == '__main__':
                ['dc_pairs_all_v2.txt'            , 'gr_dc_pairs_all', 1],
                ['alzheimer_pathway_genes.txt'    , 'ls_alz_ptw'     , 0]]    
         
-    use_source_in_class = [0, 0, 1, 1, 1, 1, 1] # Flags - whether to use data from this source as features in classifier
+    use_source_in_class = [0, 0, 1, 1, 1, 1, 1]  # Flags - whether to use data from this source as features in classifier
        
-    FNR_oneClass = 0.1 # False negative rate for one-class SVM     
+    FNR_oneClass = 0.1  # False negative rate for one-class SVM
     
-    remove_repeats = False # Flag -- remove the duplicate entries in positives or negatives lists is required
+    remove_repeats = False  # Flag -- remove the duplicate entries in positives or negatives lists is required
     
-    build_ROC = False # If True, builds ROC curve via LOO cross-validation. If False, just builds classifier
-    
-    two_class_SVM_wt = np.array([3]) # Skew between two classes
-    # two_class_SVM_wt = 2**np.arange( -7, 8, 1, dtype = np.float) 
+    build_ROC = False  # If True, builds ROC curve via LOO cross-validation. If False, just builds classifier
+
+
+    # Next two strings
+    # two_class_SVM_wt = np.array([3]) # Skew between two classes
+    two_class_SVM_wt = 2**np.arange( -7, 8, 1, dtype = np.float)
     
     max_distance_predict = 5 # Maximum distance in neighbours_of_gwas.pickle
     
@@ -197,17 +199,25 @@ if __name__ == '__main__':
     clf.fit(positives)    
     
     # Analysis of unknown PPIs in a graph of all PPIs
-    all_vertices = gr_int_all_PPI.vs["name"]
-    set_of_random_edges = [random.sample(all_vertices, 2) for _ in range(10**4)]
-    set_of_random_edges = [pair for pair in set_of_random_edges if ( pair[0] not in gr_int_alz_PPI.vs["name"] ) and ( pair[1] not in gr_int_alz_PPI.vs["name"] )]
+    all_int_edges = gr_int_all_PPI.get_edgelist()
+    set_of_random_edges = [random.sample(all_int_edges, 1)[0] for _ in range(3 * 10 ** 3)]
+    set_of_random_edges = [pair for pair in set_of_random_edges
+                           if (pair[0] not in gr_int_alz_PPI.vs["name"])
+                           and (pair[1] not in gr_int_alz_PPI.vs["name"])]
 
     opt_del_edge = [0, 0, 0, 0, 0]
-    all_vectors2 = [pair_analysis(edge[0], edge[1], set_of_graphs_class.copy(), set_of_lists_class.copy(), opt_del_edge) for edge in set_of_random_edges]
-    all_vectors2 = [analysis_vector for analysis_vector in all_vectors2 if sum(analysis_vector)>0]
+
+    all_vectors2 = [
+        pair_analysis(gr_int_all_PPI.vs[edge[0]]["name"], gr_int_all_PPI.vs[edge[1]]["name"], set_of_graphs_class,
+                      set_of_lists_class, opt_del_edge) for edge in all_int_edges]
+
+    all_vectors2 = [analysis_vector for analysis_vector in all_vectors2 if sum(analysis_vector) > 0]
+
     if remove_repeats:
-        all_vectors2 = [list(x) for x in set(tuple(x) for x in all_vectors2)] # Leave only unique entires
-    predictions  = clf.predict(all_vectors2)
-    negatives    = [vector for index, vector in enumerate(all_vectors2) if predictions[index] == -1]
+        all_vectors2 = [list(x) for x in set(tuple(x) for x in all_vectors2)]  # Leave only unique entires
+
+    predictions = clf.predict(all_vectors2)
+    negatives = [vector for index, vector in enumerate(all_vectors2) if predictions[index] == -1]
 
     X = np.array( positives + negatives )
     y = np.array([1]*len(positives) + [0]*len(negatives))
@@ -240,7 +250,10 @@ if __name__ == '__main__':
             FPR.append(FP_num[0]/len(negatives))
             ERR.append(ER_num/len(X))
         
-            print((wt,FP_num[0],TP_num[0],ER_num))
+            print((wt,
+                   FP_num[0],
+                   TP_num[0],
+                   ER_num))
     
         plt.plot(FPR, TPR)
         plt.xlabel('False postitive rate')
@@ -249,6 +262,7 @@ if __name__ == '__main__':
         plt.xlim([0,1])
         plt.ylim([0,1])
         plt.grid()
+        plt.show()
     else:
         classifier = svm.SVC(kernel='rbf', class_weight={1: two_class_SVM_wt}, probability=False)
         classifier.fit(X, y)
