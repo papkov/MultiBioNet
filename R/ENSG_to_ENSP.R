@@ -10,4 +10,13 @@ results <- getBM(attributes = c("ensembl_gene_id", "ensembl_transcript_id", "ens
 results
 
 
-diseases <- read.csv('D:\\Projects\\MultiBioNet\\data\\alz_DISEASES', sep = '\t', header = T)
+diseases <- read.csv('D:\\Projects\\MultiBioNet\\data\\alz_DISEASES', sep = '\t', header = T, stringsAsFactors = F)
+ensp <- c(diseases[1])
+
+results <- getBM(attributes = c("ensembl_gene_id", "ensembl_transcript_id", "ensembl_peptide_id"),
+                 filters = "ensembl_peptide_id", values = ensp,
+                 mart = mart)
+
+results[1]
+
+write.csv(results[1], 'D:\\Projects\\MultiBioNet\\data\\alz_DISEASES_ENSG')
