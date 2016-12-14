@@ -99,9 +99,10 @@ if __name__ == '__main__':
                ['synapse_intact_int.txt'         , 'gr_int_syn_PPI' , 1],
                ['parkinson_intact_int_PPI.txt'   , 'gr_int_par_PPI' , 1],
                ['dc_pairs_all_v2.txt'            , 'gr_dc_pairs_all', 1],
-               ['alzheimer_pathway_genes.txt'    , 'ls_alz_ptw'     , 0]]    
+               ['alzheimer_pathway_genes.txt'    , 'ls_alz_ptw'     , 0],
+               ['alz_DISEASES_ENSG'              , 'ls_alz_diseases', 0]]
         
-    use_source_in_class = [0, 0, 1, 1, 1, 1, 1] # Flags - whether to use data from this source as features in classifier
+    use_source_in_class = [0, 0, 1, 1, 1, 1, 1, 1] # Flags - whether to use data from this source as features in classifier
        
     FNR_oneClass = 0.1 # False negative rate for one-class SVM     
     
@@ -111,13 +112,14 @@ if __name__ == '__main__':
    
     remove_repeats = False # Flag -- remove the duplicate entries in positives or negatives lists is required
     
-    build_ROC = True # If True, builds ROC curve via LOO cross-validation. If False, just builds classifier
+    build_ROC = True# If True, builds ROC curve via LOO cross-validation. If False, just builds classifier
     
-    # two_class_SVM_wt = np.array([3]) # Skew between two classes
+    # two_class_SVM_wt = np.array([0.3]) # Skew between two classes
+
     # two_class_SVM_wt = np.arange( 1 , 64,  1 , dtype = np.float)
     two_class_SVM_wt = np.concatenate( (2**np.arange(-7,0,1, dtype = np.float) , np.arange( 1 , 40,  5 , dtype = np.float)))
         
-    # max_distance_predict = 1 # Maximum distance in neighbours_of_gwas.pickle
+    max_distance_predict = 2 # Maximum distance in neighbours_of_gwas.pickle
         
     # ----------- Long and boring re-loading of required data --------------------
     # Here I take a raw data from txt (csv) files, convert them into iGraph and
@@ -267,6 +269,9 @@ if __name__ == '__main__':
         counter_all = 0
         counter_pr = 0
         x = 0
+
+        predicted_pairs = []
+
         for item in neighbours_of_gwas:
             x += 1
             print( (x,len(neighbours_of_gwas)) )
@@ -278,9 +283,13 @@ if __name__ == '__main__':
                     features = np.array( [pair_analysis(item, nb_tuple[0], set_of_graphs_class.copy(), set_of_lists_class.copy(), opt_del_edge)] )
                     if classifier.predict(features):
                         counter_pr += 1
+                        predicted_pairs.append((item, nb_tuple[0]))
 #                        print(item+' '+nb_tuple[0])
+
             
-        print((counter_all, counter_pr))           
+        print((counter_all, counter_pr))
+        with open('../data/predicted_pairs_wt1_nghb3.csv', 'w') as f:
+            f.writelines(['%s,%s\n' % (str(p[0]), str(p[1])) for p in predicted_pairs])
         
         plt.legend(loc = 4)
         plt.xlabel('False postitive rate')
@@ -289,5 +298,4 @@ if __name__ == '__main__':
         plt.xlim([0,1])
         plt.ylim([0,1])
         plt.grid()
-        plt.show()
         
